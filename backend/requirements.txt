@@ -1,0 +1,39 @@
+# Q-Sentra Backend Dependencies
+# Production-grade Python requirements
+
+# ── Core Framework ──
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+pydantic==2.10.4
+
+# ── Database ──
+sqlalchemy[asyncio]==2.0.36
+asyncpg==0.30.0
+motor==3.7.0
+pymongo==4.10.1
+
+# ── Redis / Celery ──
+celery==5.4.0
+redis==5.2.1
+
+# ── Authentication ──
+PyJWT==2.10.1
+passlib[bcrypt]==1.7.4
+bcrypt==4.2.1
+
+# ── TLS/Crypto Scanning ──
+pyOpenSSL==24.3.0
+cryptography==44.0.0
+
+# ── HTTP Client ──
+httpx==0.28.1
+
+# ── AI / Graph Analysis ──
+networkx==3.4.2
+numpy==2.2.1
+
+# ── CORS + Security ──
+python-multipart==0.0.19
+
+# ── Utilities ──
+python-dotenv==1.0.1

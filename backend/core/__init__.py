@@ -1,0 +1,1 @@
+# Q-Sentra Core Module

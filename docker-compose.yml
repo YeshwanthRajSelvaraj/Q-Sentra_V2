@@ -1,0 +1,124 @@
+# Q-Sentra Docker Compose
+# Run: docker-compose up --build
+# Access: Frontend http://localhost:3000 | API http://localhost:8000/docs
+
+version: "3.9"
+
+services:
+  # ── PostgreSQL ──
+  postgres:
+    image: postgres:16-alpine
+    container_name: qsentra-postgres
+    environment:
+      POSTGRES_DB: qsentra
+      POSTGRES_USER: qsentra
+      POSTGRES_PASSWORD: qsentra_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U qsentra"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── MongoDB ──
+  mongodb:
+    image: mongo:7
+    container_name: qsentra-mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Redis ──
+  redis:
+    image: redis:7-alpine
+    container_name: qsentra-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Backend API (FastAPI) ──
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: qsentra-backend
+    ports:
+      - "8000:8000"
+    environment:
+      POSTGRES_URL: postgresql+asyncpg://qsentra:qsentra_pass@postgres:5432/qsentra
+      MONGO_URL: mongodb://mongodb:27017
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER: redis://redis:6379/1
+      CELERY_BACKEND: redis://redis:6379/2
+      JWT_SECRET: qsentra-production-secret-change-me
+      DEMO_MODE: "true"
+      DEBUG: "false"
+      CORS_ORIGINS: "http://localhost:3000,http://localhost:5173"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --workers 2
+
+  # ── Celery Worker ──
+  celery-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: qsentra-celery-worker
+    environment:
+      CELERY_BROKER: redis://redis:6379/1
+      CELERY_BACKEND: redis://redis:6379/2
+      POSTGRES_URL: postgresql+asyncpg://qsentra:qsentra_pass@postgres:5432/qsentra
+      MONGO_URL: mongodb://mongodb:27017
+    depends_on:
+      redis:
+        condition: service_healthy
+    command: celery -A core.celery_app:celery_app worker --loglevel=info --concurrency=4
+
+  # ── Celery Beat (Scheduler) ──
+  celery-beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: qsentra-celery-beat
+    environment:
+      CELERY_BROKER: redis://redis:6379/1
+      CELERY_BACKEND: redis://redis:6379/2
+    depends_on:
+      redis:
+        condition: service_healthy
+    command: celery -A core.celery_app:celery_app beat --loglevel=info
+
+  # ── Frontend (React) ──
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: qsentra-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      VITE_API_URL: http://localhost:8000
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  mongo_data:
